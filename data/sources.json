@@ -1,0 +1,50 @@
+[
+  {
+    "source_id": "azure_databricks_rag",
+    "title": "RAG on Azure Databricks",
+    "url": "https://learn.microsoft.com/en-us/azure/databricks/generative-ai/retrieval-augmented-generation",
+    "category": "Azure Databricks RAG",
+    "status": "active",
+    "access_level": "public"
+  },
+  {
+    "source_id": "mosaic_ai_vector_search",
+    "title": "Mosaic AI Vector Search",
+    "url": "https://learn.microsoft.com/en-us/azure/databricks/vector-search/vector-search",
+    "category": "Databricks Vector Search",
+    "status": "active",
+    "access_level": "public"
+  },
+  {
+    "source_id": "create_vector_search_indexes",
+    "title": "Create vector search endpoints and indexes",
+    "url": "https://learn.microsoft.com/en-us/azure/databricks/vector-search/create-vector-search",
+    "category": "Databricks Vector Search",
+    "status": "active",
+    "access_level": "public"
+  },
+  {
+    "source_id": "query_vector_search_index",
+    "title": "Query a vector search index",
+    "url": "https://learn.microsoft.com/en-us/azure/databricks/vector-search/query-vector-search",
+    "category": "Databricks Vector Search",
+    "status": "active",
+    "access_level": "public"
+  },
+  {
+    "source_id": "unity_catalog_overview",
+    "title": "What is Unity Catalog?",
+    "url": "https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/",
+    "category": "Unity Catalog",
+    "status": "active",
+    "access_level": "public"
+  },
+  {
+    "source_id": "azure_databricks_glossary",
+    "title": "Azure Databricks technical terminology glossary",
+    "url": "https://learn.microsoft.com/en-us/azure/databricks/resources/glossary",
+    "category": "Azure Databricks Concepts",
+    "status": "active",
+    "access_level": "public"
+  }
+]

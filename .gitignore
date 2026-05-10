@@ -1,0 +1,8 @@
+.env
+chroma_db/
+lakehouse/bronze/*.parquet
+lakehouse/silver/*.parquet
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
