@@ -1,8 +1,19 @@
-streamlit
-requests
-beautifulsoup4
-python-dotenv
-pandas
-pyarrow
-chromadb
-sentence-transformers
+streamlit==1.41.1
+requests==2.32.3
+beautifulsoup4==4.12.3
+python-dotenv==1.0.1
+pandas==2.2.3
+pyarrow==18.1.0
+chromadb==0.5.23
+sentence-transformers==3.3.1
+transformers==4.46.3
+huggingface-hub==0.36.2
+tokenizers==0.20.3
+
+# ChromaDB imports OpenTelemetry protobuf modules at startup. Keeping protobuf
+# below v4 avoids descriptor creation failures with older generated pb2 files.
+protobuf==3.20.3
+opentelemetry-api==1.27.0
+opentelemetry-sdk==1.27.0
+opentelemetry-exporter-otlp-proto-grpc==1.27.0
+opentelemetry-instrumentation-fastapi==0.48b0

@@ -103,6 +103,12 @@ python build_vector_index.py
 streamlit run app.py
 ```
 
+## G.1 Streamlit Community Cloud Deployment
+
+When deploying to Streamlit Community Cloud, choose Python 3.11 in the app's Advanced settings. This project uses ChromaDB, sentence-transformers, and protobuf-dependent packages that should not be deployed on Python 3.14.
+
+If the app was already deployed with a newer Python version, delete and redeploy the app with Python 3.11. Changing `requirements.txt` alone will not change the Python runtime for an existing Streamlit Community Cloud app.
+
 ## H. Example Search Queries
 
 - Databricks 的 RAG 是什麼？
