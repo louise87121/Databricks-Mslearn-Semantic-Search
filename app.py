@@ -13,6 +13,8 @@ CHROMA_PATH = PROJECT_ROOT / "chroma_db"
 COLLECTION_NAME = "mslearn_databricks_docs"
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 CUSTOM_PROMPT_OPTION = "Custom input"
+MAX_RETURNED_CHUNKS = 5
+RETRIEVAL_OVERFETCH_MULTIPLIER = 4
 PROMPT_GROUPS = {
     "Vector Search": {
         "概念理解": [
@@ -107,6 +109,12 @@ def render_global_styles() -> None:
     color: #6b7280;
     font-size: 0.86rem;
 }
+.architecture-section {
+    margin-top: 1.2rem;
+}
+.architecture-note {
+    line-height: 1.65;
+}
 .search-section {
     margin-top: 1.35rem;
 }
@@ -143,6 +151,56 @@ def bilingual_heading(english: str, chinese: str, level: int = 3) -> None:
 @st.cache_resource
 def load_embedding_model() -> SentenceTransformer:
     return SentenceTransformer(EMBEDDING_MODEL_NAME)
+
+
+def readable_document_paragraphs(text: str, max_chars: int = 520) -> list[str]:
+    normalized = " ".join(text.split())
+    sentences = []
+    start = 0
+
+    for index, character in enumerate(normalized):
+        if character in ".!?" and (index == len(normalized) - 1 or normalized[index + 1] == " "):
+            sentences.append(normalized[start : index + 1].strip())
+            start = index + 1
+
+    remaining = normalized[start:].strip()
+    if remaining:
+        sentences.append(remaining)
+
+    paragraphs: list[str] = []
+    current = ""
+    for sentence in sentences:
+        next_paragraph = f"{current} {sentence}".strip()
+        if current and len(next_paragraph) > max_chars:
+            paragraphs.append(current)
+            current = sentence
+        else:
+            current = next_paragraph
+
+    if current:
+        paragraphs.append(current)
+
+    return paragraphs
+
+
+def render_readable_document_chunk(text: str) -> None:
+    for paragraph in readable_document_paragraphs(text):
+        st.write(paragraph)
+
+
+def document_dedupe_key(document: str) -> str:
+    return " ".join(document.split()).casefold()
+
+
+def paragraph_label(number: int) -> str:
+    labels = {
+        1: "一",
+        2: "二",
+        3: "三",
+        4: "四",
+        5: "五",
+    }
+    return f"段落{labels.get(number, number)}"
 
 
 def load_chroma_collection():
@@ -188,16 +246,23 @@ def retrieve_context(query: str, top_k: int) -> list[dict]:
     collection = load_chroma_collection()
     model = load_embedding_model()
     query_embedding = model.encode(query).tolist()
+    result_limit = min(top_k, MAX_RETURNED_CHUNKS)
+    retrieval_count = max(result_limit * RETRIEVAL_OVERFETCH_MULTIPLIER, result_limit)
 
-    results = _query_collection(collection, query_embedding, top_k)
+    results = _query_collection(collection, query_embedding, retrieval_count)
     documents = results.get("documents", [[]])[0]
     metadatas = results.get("metadatas", [[]])[0]
     distances = results.get("distances", [[]])[0]
 
     contexts: list[dict] = []
+    seen_documents: set[str] = set()
     for document, metadata, distance in zip(documents, metadatas, distances):
         if metadata.get("status") != "active" or metadata.get("access_level") != "public":
             continue
+        dedupe_key = document_dedupe_key(document)
+        if dedupe_key in seen_documents:
+            continue
+        seen_documents.add(dedupe_key)
         contexts.append(
             {
                 "content": document,
@@ -208,7 +273,7 @@ def retrieve_context(query: str, top_k: int) -> list[dict]:
                 "distance": distance,
             }
         )
-        if len(contexts) >= top_k:
+        if len(contexts) >= result_limit:
             break
 
     return contexts
@@ -217,6 +282,13 @@ def retrieve_context(query: str, top_k: int) -> list[dict]:
 def render_sidebar() -> None:
     st.sidebar.header("Search App")
     st.sidebar.caption("文件搜尋工具")
+    page = st.sidebar.radio(
+        "View",
+        ["Search", "Architecture"],
+        label_visibility="collapsed",
+    )
+    st.sidebar.divider()
+
     st.sidebar.markdown(
         """
 - Source: Microsoft Learn Azure Databricks docs  
@@ -252,12 +324,6 @@ def render_sidebar() -> None:
         st.sidebar.warning("Index not ready")
         st.sidebar.caption("索引尚未建立")
 
-    st.sidebar.divider()
-    page = st.sidebar.radio(
-        "View",
-        ["Search", "Architecture"],
-        label_visibility="collapsed",
-    )
     return page
 
 
@@ -361,15 +427,15 @@ def render_search_controls() -> tuple[str, int, bool]:
     top_k = st.slider(
         "Returned chunks (top_k)",
         min_value=1,
-        max_value=10,
+        max_value=MAX_RETURNED_CHUNKS,
         value=5,
         help="Controls how many relevant documentation chunks are returned.\n\n控制每次搜尋最多回傳幾個相關文件片段。",
         label_visibility="collapsed",
     )
 
     bilingual_text(
-        f"Returns up to {top_k} chunks. Use 3-5 for quick review; use 6-10 to compare more sources.",
-        f"最多回傳 {top_k} 個片段。3-5 適合快速查看；6-10 適合比較更多來源。",
+        f"Returns up to {top_k} unique chunks. Duplicate chunks are hidden.",
+        f"最多回傳 {top_k} 個不重複片段。重複的片段不會顯示。",
     )
     submitted = st.button("Search", type="primary")
 
@@ -402,35 +468,28 @@ Microsoft Learn documentation <span class="zh">Microsoft Learn 文件</span>
         unsafe_allow_html=True,
     )
 
-    component_column, usage_column = st.columns([1.15, 1])
-    with component_column:
-        st.subheader("Main Components")
-        st.caption("主要元件")
-        st.table(
-            {
-                "Component": [
-                    "data/sources.json",
-                    "ChromaDB vector index",
-                    "SentenceTransformer",
-                    "Metadata filters",
-                    "Source URL",
-                ],
-                "中文說明": [
-                    "文件來源清單",
-                    "本機向量索引",
-                    "文字轉 embedding 的模型",
-                    "控制可檢索內容",
-                    "結果來源連結",
-                ],
-            }
-        )
+    st.markdown('<div class="architecture-section"></div>', unsafe_allow_html=True)
+    st.subheader("Main Components")
+    st.caption("主要元件")
+    st.dataframe(
+        [
+            {"Component": "data/sources.json", "中文說明": "文件來源清單"},
+            {"Component": "ChromaDB vector index", "中文說明": "本機向量索引"},
+            {"Component": "SentenceTransformer", "中文說明": "文字轉 embedding 的模型"},
+            {"Component": "Metadata filters", "中文說明": "控制可檢索內容"},
+            {"Component": "Source URL", "中文說明": "結果來源連結"},
+        ],
+        hide_index=True,
+        use_container_width=True,
+    )
 
+    st.markdown('<div class="architecture-section"></div>', unsafe_allow_html=True)
+    usage_column, scope_column = st.columns(2)
     with usage_column:
+        st.subheader("How to Use")
+        st.caption("如何使用")
         st.markdown(
             """
-### How to Use
-<span class="zh-small">如何使用</span>
-
 1. **Select a topic**  
    <span class="zh-small">選擇主題</span>
 2. **Pick or edit a prompt**  
@@ -439,12 +498,19 @@ Microsoft Learn documentation <span class="zh">Microsoft Learn 文件</span>
    <span class="zh-small">調整回傳片段數量</span>
 4. **Review chunks and URLs**  
    <span class="zh-small">查看片段與來源連結</span>
+""",
+            unsafe_allow_html=True,
+        )
 
-### Scope
-<span class="zh-small">範圍</span>
-
-This app retrieves source chunks. It does not generate final answers.  
-<span class="zh-small">這個 app 回傳來源片段，不會自動生成完整回答。</span>
+    with scope_column:
+        st.subheader("Scope")
+        st.caption("範圍")
+        st.markdown(
+            """
+<div class="architecture-note">
+This app performs semantic search over trusted documentation. It returns relevant chunks, metadata, distance scores, and source URLs for review, but does not generate final answers.<br>
+<span class="zh-small">這個 app 會針對可信任文件做語意搜尋，回傳相關片段、metadata、distance score 與來源 URL 供使用者檢查，但不會自動產生完整回答。</span>
+</div>
 """,
             unsafe_allow_html=True,
         )
@@ -478,14 +544,29 @@ def render_search_results(query: str, top_k: int) -> None:
         st.info("No documentation chunks matched the governance filters.\n\n沒有找到符合治理條件的文件片段。")
         return
 
+    title_counts: dict[str, int] = {}
+    for context in contexts:
+        title_counts[context["title"]] = title_counts.get(context["title"], 0) + 1
+
+    title_seen: dict[str, int] = {}
     for index, context in enumerate(contexts, start=1):
-        with st.expander(f"{index}. {context['title']}"):
+        title = context["title"]
+        title_seen[title] = title_seen.get(title, 0) + 1
+        expander_title = f"{index}. {title}"
+        if title_counts[title] > 1:
+            expander_title = f"{expander_title} - {paragraph_label(title_seen[title])}"
+
+        with st.expander(expander_title):
             st.write(f"**Title:** {context['title']}")
+            if title_counts[title] > 1:
+                st.write(f"**Paragraph:** {paragraph_label(title_seen[title])}")
             st.write(f"**Category:** {context['category']}")
             st.write(f"**URL:** {context['url']}")
             st.write(f"**Distance score:** {context['distance']:.4f}")
             st.write(f"**Source ID:** {context['source_id']}")
-            st.text(context["content"])
+
+            st.markdown("**Readable source text:**")
+            render_readable_document_chunk(context["content"])
 
 
 def main() -> None:
